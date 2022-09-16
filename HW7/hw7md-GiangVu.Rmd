@@ -1,0 +1,295 @@
+---
+title: "Assignment 7"
+author: "Giang Vu"
+date: "4/15/2021"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(dplyr)
+library(plyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+library(tibble)
+library(numDeriv)
+setwd("/Users/giangvu/Desktop/STAT 2301 - Statistical Computing and Data Science/HW/HW7")
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning=FALSE,out.width="80%")
+```
+
+## Homework 7
+
+### 1.\
+
+Even though only the first 3 columns of x are relevant in calculating y, looking at the correlation coefficients, we cannot see this.\
+
+```{r}
+n <- 100
+p <- 10
+s <- 3
+set.seed(0)
+x <- matrix(rnorm(n*p), n, p)
+b <- c(-0.7, 0.7, 1, rep(0, p-s))
+y <- x %*% b + rt(n, df=2)
+
+cor(x,y)
+```
+
+### 2.\
+
+The two densities are plotted below, with the red line from normal distribution, and blue line for t-distribution.\
+
+```{r}
+plot(seq(-3,3,0.1),dnorm(seq(-3,3,0.1),mean = 0,sd=1),type = "l",col = "red", xlab = "x", ylab = "Density")
+lines(seq(-3,3,0.1),dt(seq(-3,3,0.1),3),col="blue")
+legend(1.2,0.4,legend=c("normal distribution","t-distribution"), lty = 1, col = c("red","blue"),cex=0.6)
+```
+
+### 3.\
+
+The function huber.loss() is defined below.\
+
+```{r}
+psi <- function(r, c = 1) {
+1
+return(ifelse(r^2 > c^2, 2*c*abs(r) - c^2, r^2))
+}
+
+huber.loss <- function(beta){
+  return(sum(aaply(y - x %*% beta,1,psi)))
+}
+
+huber.loss(b) #test with original b
+```
+
+### 4.\
+
+It took 127 iterations to converge, and the final coefficient estimates is printed below.\
+
+```{r}
+#grad.descent from lecture
+grad.descent <- function(f, x0, max.iter = 200, step.size = 0.05, stopping.deriv = 0.01, ...) {
+  
+  n    <- length(x0)
+  xmat <- matrix(0, nrow = n, ncol = max.iter)
+  xmat[,1] <- x0
+  
+  for (k in 2:max.iter) {
+    # Calculate the gradient
+    grad.cur <- grad(f, xmat[ ,k-1], ...) 
+    
+    # Should we stop?
+    if (all(abs(grad.cur) < stopping.deriv)) {
+      k <- k-1; break
+    }
+    
+    # Move in the opposite direction of the grad
+    xmat[ ,k] <- xmat[ ,k-1] - step.size * grad.cur
+  }
+  
+  xmat <- xmat[ ,1:k] # Trim
+  return(list(x = xmat[,k], xmat = xmat, k = k))
+}
+
+#run grad descent to get estimate of beta in gd
+gd <- grad.descent(huber.loss, x0 = rep(0,p), max.iter = 200,
+                   step.size = 0.001, stopping.deriv = 0.1)
+
+#final coeff estimates
+gd$x
+```
+
+### 5.\
+
+Looking at the plot below of Huber loss values against iteration number, we can see that gradient descent made the objective function decrease at each iteration.\
+In the early iterations, the objective function was decreased at a faster rate, while towards the end, the decline slowed down.\
+
+```{r}
+#obj vector
+obj <- aaply(gd$xmat,2,huber.loss)
+
+#plot
+plot(x=names(obj),y=obj,type = "b",
+     xlab = "Iteration", ylab = "Huber loss")
+
+```
+### 6.\
+
+With a larger step size, the criterion isn't decreasing at each iteration anymore, and gradient descent didn't converge at the end.\
+Looking at (a part of) the xmat matrix of the gradient descent result, we can see that the signs for the coefficient estimates for the first 3 variables (almost) always alternate after one iteration, which resulted in the plot that we had here with a fluctuating Huber loss values across iterations.\
+
+```{r}
+gd2 <- grad.descent(huber.loss, x0 = rep(0,p), max.iter = 200,
+                   step.size = 0.1, stopping.deriv = 0.1)
+
+#obj vector
+obj2 <- aaply(gd2$xmat,2,huber.loss)
+
+#plot
+plot(x=names(obj2[151:200]),y=obj2[151:200],type = "b",
+     xlab = "Iteration", ylab = "Huber loss")
+
+#xmat
+gd2$xmat[,190:200]
+
+```
+
+### 7.\
+
+Looking at estimates from question 4 and original coefficients in b, we can see the first 3 variables are pretty close, but the rest are not very accurate.\
+Sparsified gradient descent provides much better coefficient estimates for all of 10 variables, where the last 7 are reduced to zero if they have small enough values.\
+
+```{r}
+#q4 result
+gd$x
+
+#original b
+b
+
+#sparse.grad.descent 
+sparse.grad.descent <- function(f, x0, max.iter = 200, step.size = 0.05, stopping.deriv = 0.01, ...) {
+  
+  n    <- length(x0)
+  xmat <- matrix(0, nrow = n, ncol = max.iter)
+  xmat[,1] <- x0
+  
+  for (k in 2:max.iter) {
+    # Calculate the gradient
+    grad.cur <- grad(f, xmat[ ,k-1], ...) 
+    
+    # Should we stop?
+    if (all(abs(grad.cur) < stopping.deriv)) {
+      k <- k-1; break
+    }
+
+    # Move in the opposite direction of the grad
+    xmat[ ,k] <- xmat[ ,k-1] - step.size * grad.cur
+    
+    # threshold small (<=0.05) values to zero
+    for (j in 1:length(xmat[ ,k])){
+      xmat[ ,k][j] <- ifelse(abs(xmat[ ,k][j]) <= 0.05, 0, xmat[ ,k][j])
+    }
+  }
+  
+  xmat <- xmat[ ,1:k] # Trim
+  return(list(x = xmat[,k], xmat = xmat, k = k))
+}
+
+#run sparse grad descent with settings like question 4 to get new estimates of beta in gd.sparse
+gd.sparse <- sparse.grad.descent(huber.loss, x0 = rep(0,p), max.iter = 200,
+                   step.size = 0.001, stopping.deriv = 0.1)
+
+#final coeff estimates
+gd.sparse$x
+```
+
+### 8.\
+
+The estimates in question 7 is better than estimates in question 4, both of which are closer to true b than using lm().\
+However the MSE (calculated using Huber loss, not usual MSE) for lm() is smallest of the three, MSE for estimates using sparse gradient descent is in the middle, while MSE for gradient descent is largest.\
+So lm() has the best estimates (MSE is minimized), while sparse gradient descent has better results than gradient descent.\
+
+```{r}
+#using lm
+coef(lm(y~x+0))
+
+#q4 result
+gd$x
+
+#q7 result
+gd.sparse$x
+
+#b
+b
+
+#MSE for lm - 200.9355
+mean(huber.loss(coef(lm(y~x+0))))
+
+#MSE for q4 - 213.809
+mean(huber.loss(gd$x))
+
+#MSE for q7 - 205.2263
+mean(huber.loss(gd.sparse$x))
+```
+
+### 9.\
+
+After rerunning questions 4 and 7 with new data, the new estimates for sparsified gradient descent are still closer to original b than gradient descent, and still has better MSE.\
+This suggests that sparsified gradient descent has little variability in producing estimates that minimizes Huber loss function.\
+
+```{r}
+set.seed(10)
+y <- x %*% b + rt(n, df=2)
+
+#rerun 4 with new y
+gd.9 <- grad.descent(huber.loss, x0 = rep(0,p), max.iter = 200,
+                   step.size = 0.001, stopping.deriv = 0.1)
+
+#coeff estimates
+gd.9$x
+
+#MSE - 211.5029
+mean(huber.loss(gd.9$x))
+
+#rerun 7 with new y
+gd.sparse.9 <- sparse.grad.descent(huber.loss, x0 = rep(0,p), max.iter = 200,
+                   step.size = 0.001, stopping.deriv = 0.1)
+
+#coeff est
+gd.sparse.9$x 
+
+#MSE - 210.0493
+mean(huber.loss(gd.sparse.9$x))
+
+#original b
+b
+```
+
+### 10.\
+
+After repeating the experiment in question 9 with 10 new copies of 10, we can see that the average MSE and minimum MSE of estimates using gradient descent are smaller than that using sparsified gradient descent.\
+This is not in line with my interpretation of the variability associated with the sparse descent method I made earlier in question 9. Sparse gradient descent doesn't always produce better coefficient estimates (lower mean squared error using Huber loss) than gradient descent.\
+
+```{r}
+#put question 9 in a loop
+#empty vectors for results
+mse.gd <- numeric(10)
+mse.sparse.gd <- numeric(10)
+
+set.seed(10)
+
+#loop
+for (i in 1:10) {
+  y <- x %*% b + rt(n, df=2) #generate new y
+  
+  gd.loop <- grad.descent(huber.loss, x0 = rep(0,p), max.iter = 200,
+                   step.size = 0.001, stopping.deriv = 0.1)
+
+  gds.loop <- sparse.grad.descent(huber.loss, x0 = rep(0,p), max.iter = 200,
+                   step.size = 0.001, stopping.deriv = 0.1)
+  
+  mse.gd[i] <- mean(huber.loss(gd.loop$x))
+  mse.sparse.gd[i] <- mean(huber.loss(gds.loop$x))
+}
+
+#avg mse
+mean(mse.gd)
+mean(mse.sparse.gd)
+mean(mse.gd) > mean(mse.sparse.gd) 
+
+#min mse
+min(mse.gd)
+min(mse.sparse.gd)
+min(mse.gd) > min(mse.sparse.gd)
+
+```
+
+
+
+
+
+
+
