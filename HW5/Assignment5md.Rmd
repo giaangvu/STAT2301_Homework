@@ -1,0 +1,407 @@
+---
+title: "Assignment 5"
+author: "Giang Vu"
+date: "3/31/2021"
+output: pdf_document
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(dplyr)
+library(plyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+library(tibble)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning=FALSE,out.width="80%")
+```
+
+
+## Part 1.\
+
+#### 2.\
+
+Using the transformation of $U$ in previous part, I defined a function in R to generate $n$ simulated Cauchy random variables below. I also tested the function with $n=10$\
+
+```{r}
+#define function cauchy.sim
+cauchy.sim <- function(n) {
+  #generate u from uniform[0,1]
+  u <- runif(n)
+  # Function for the inverse transform
+  return(ifelse((u<0|u>1), 0, tan(pi*(u-0.5))))
+}
+
+#test with n = 10
+set.seed(0)
+cauchy.sim(10)
+```
+
+#### 3.\
+
+Using the cauchy.sim function in previous part, I simulated with $n=1000$. Below is the histogram of this random variable with $f_X(x)$ overlaid on it.\
+
+```{r}
+#apply function with n =1000
+set.seed(0)
+cauchy.draws <- cauchy.sim(1000)
+
+#histogram
+hist(cauchy.draws, prob = T,breaks = 10000, xlim = c(-10,10),ylim = c(0,.4))
+y <- seq(-10, 10, .1)
+lines(y, 1/(pi*(1+y^2)), col = "blue")
+```
+
+Here is the histogram of this random variable with the density of the true Cauchy(0,1) overlaid on it. I could see my simulation is very close to the true density generated using built in R function.\
+
+```{r}
+#histogram
+hist(cauchy.draws, prob = T,breaks = 50)
+y <- seq(-500, 500, 1)
+lines(y, 1/(pi*(1+y^2)), col = "blue")
+lines(y, dcauchy(y,location = 0,scale = 1),col ="red")
+```
+
+
+## Part 2.\
+
+### Problem 2.\
+
+#### 4.\
+
+Function $f(x)$ is defined and a plot for it for values between -3 and 3 is generated.\
+
+```{r}
+#define f
+f <- function(x){
+  return(ifelse((x<(-1) | x>2), 0, (1/9)*(4-x^2)))
+}
+
+#plot
+x <- seq(-3,3,length=100)
+plot(x=x,y=f(x),type = "l",
+     ylab = "f(x)")
+
+```
+
+#### 5.\
+
+From the plot, we can see the maximum of $f(x)$ is 0.444, which is achieved when $x=0$. (Or we can take the derivative of $f(x)$ and set it equal to 0 to solve for x, which shows us the maximizer is x = 0).\
+We then form the envelope $e(x)$ with $\alpha=1/f.max$ and $g(x)$ as the density for the uniform distribution on [-1,2] as follows.\
+$e(x)=g(x)/\alpha=f.max\geq f(x)$\
+
+```{r}
+#check max of f(x)
+max(f(x))
+f.max <- f(0)
+f.max  
+
+#define envelope e(x)
+e <- function(x) {
+  return(ifelse((x < -1 | x > 2), Inf, f.max))
+}
+```
+
+Here is the plot of the envelope function.\
+
+```{r}
+plot(x=x,y=f(x),type = "l",
+     ylab = "f(x)")
+lines(c(-3, -3), c(0, e(0)), lty = 1)
+lines(c(3, 3), c(0, e(1)), lty = 1)
+lines(c(3,-3), c(e(0),e(0)), lty = 1)
+```
+
+#### 6.\
+
+A program using the Accept-Reject Algorithm is written and the simulated data is saved in vector f.draws
+
+```{r}
+n.samps <- 10000   # number of samples desired
+n       <- 0		     # counter for number samples accepted
+f.draws   <- numeric(n.samps) # initialize the vector of output
+set.seed(0)
+while (n < n.samps) {
+  y <- runif(1,min = -1,max = 2)    #random draw from g
+  u <- runif(1)
+  if (u < f(y)/e(y)) {
+    n        <- n + 1
+    f.draws[n] <- y
+  }
+}
+
+```
+
+#### 7.\
+
+Histogram for simulated data with density f overlaid. The simulated data looks quite close to the density.\
+
+```{r}
+#histogram
+x <- seq(-3,3,length=100)
+hist(f.draws, prob = T, ylab = "f(x)", xlab = "x",
+     main = "Histogram of simulated draws")
+
+#add density line
+lines(x, f(x), lty = 2)
+```
+
+### Problem 3.\
+
+#### 8.\
+
+Function $f(x)$ is defined and a plot for it for values between -5 and 5 is generated.\
+I named it f1 to avoid mistaking with function f from Problem 2.\
+
+```{r}
+#define f
+f1 <- function(x){
+  return((1/sqrt(2*pi))*exp((-1/2)*x^2))
+}
+
+#plot
+x <- seq(-5,5,length=100)
+plot(x=x,y=f1(x),type = "l",
+     ylab = "f(x)")
+```
+
+#### 9.\
+
+Function $e(x)$ is defined and I named it e1 to avoid mistaking it with e from Problem 2.\
+
+```{r}
+#define e
+e1 <- function(x, alpha){
+  stopifnot(length(alpha)==1, (0 < alpha & alpha < 1))
+  return((1/(pi*(1+x^2)))/alpha)
+}
+```
+
+
+#### 10.\
+
+After playing around and plotting for different values for $\alpha$, I chose my good value to be 0.6. As seen from the plot on [-10,10] below, this envelope is very close to $f(x)$ is always right above $f(x)$ at every value of $x$.
+
+```{r}
+x <- seq(-10,10,length=100)
+plot(x=x,y=f1(x),type = "l",
+     ylab = "f(x)")
+lines(x,e1(x,0.6), lty = 2)
+
+legend(5.5,0.4,legend=c("f(x)","e(x)"),lty=1:2,cex=0.8)
+```
+
+#### 11.\
+
+A function using the Accept-Reject Algorithm is written and it also takes advantage of the Cauchy simulation function we defined in Part 1.\
+
+```{r}
+#define function
+normal.sim <- function(n){
+  i <- 0 # counter for number samples accepted
+  norm.draws <- numeric(n) # initialize the vector of output
+  set.seed(0)
+  while(i < n) {
+    y <- cauchy.sim(1) #draw from g(x, which is cauchy using function in part 1
+    u <- runif(1)
+    if (u < f1(y)/e1(y,0.6)) {
+      i <- i + 1
+      norm.draws[i] <- y
+    }
+  }
+  return(norm.draws)
+}
+
+#test with n = 10
+normal.sim(10)
+```
+
+#### 12.\
+
+Applying the function above for $n=10000$ I obtained 10,000 draws from standard normal distribution, and made a histogram with $f(x)$ overlaid on the graph. The simulated draw is quite close to the actual density.\
+
+```{r}
+#draw 10000
+normal.draws <- normal.sim(10000)
+
+#histogram
+x <- seq(-10,10,length=100)
+hist(normal.draws, prob = T, ylab = "f(x)", xlab = "x",
+     main = "Histogram of simulated draws from N(0,1)")
+
+#add density line
+lines(x, f1(x), lty = 2)
+```
+
+## Part 3.\
+
+#### 13.\
+
+A while() loop is implemented below, and the result is a vector of 13 numbers that satisfy our requirements.
+
+```{r}
+x <- 5
+set.seed(0)
+i <- 0
+x.vals <- c()
+while(x > 0) {
+  r <- runif(1, min=-2, max = 1)
+  i <- i + 1
+  x.vals[i] <- x
+  x <- x + r
+}
+```
+
+#### 14.\
+
+```{r}
+plot(y=x.vals,x=c(1:13),xlab = "Iteration", ylab = "x-values", 
+     type = "o", main = "Random walk values versus Iteration number")
+```
+
+#### 15.\
+
+The function is defined below.\
+
+```{r}
+#define function
+random.walk <- function(x.start=5,plot.walk=TRUE){
+  num.steps <- 0
+  x.vals <- c()
+  while(x.start > 0) {
+    r <- runif(1, min=-2, max = 1)
+    num.steps <- num.steps + 1
+    x.vals[num.steps] <- x.start
+    x.start <- x.start + r
+  }
+  if (plot.walk==TRUE){
+    plot(y=x.vals,x=c(1:num.steps),xlab = "Iteration", ylab = "x-values", 
+         type = "o", main = "Random walk values versus Iteration number")
+  }
+  return(list(x.vals=x.vals,num.steps=num.steps))
+}
+```
+
+Test run twice with default values.\
+
+```{r}
+random.walk()
+```
+
+```{r}
+random.walk()
+```
+
+Test run twice with 10 and FALSE as input.\
+
+```{r}
+random.walk(10,F)
+```
+
+```{r}
+random.walk(10,F)
+```
+
+#### 16.\
+
+By making 10,000 random walks with x = 5, I estimated the mean number of iterations to be 11.25. Essentially on average the random walk we designed carries out about 11 iterations before it terminates.\
+
+```{r}
+#loop for 10000 random walks
+iters <- numeric(10000)
+for (i in 1:10000) {
+  li <- random.walk(5,F)
+  iters[i] <- li$num.steps #extract iteration number with each walk
+}
+
+#mean of iteration number
+mean(iters)
+```
+
+#### 17.\
+
+The function is modified to add seed setting argument.\
+
+```{r}
+#add seed to function
+random.walk <- function(x.start=5,plot.walk=TRUE,seed=NULL){
+  num.steps <- 0
+  x.vals <- c()
+  if (!is.null(seed)){set.seed(seed)} #set seed only when seed is specified in argument by user
+  while(x.start > 0) {
+    r <- runif(1, min=-2, max = 1)
+    num.steps <- num.steps + 1
+    x.vals[num.steps] <- x.start
+    x.start <- x.start + r
+  }
+  if (plot.walk==TRUE){
+    plot(y=x.vals,x=c(1:num.steps),xlab = "Iteration", ylab = "x-values", 
+         type = "o", main = "Random walk values versus Iteration number")
+  }
+  return(list(x.vals=x.vals,num.steps=num.steps))
+}
+```
+
+Test run with default arguments
+```{r}
+#test with default
+random.walk()
+
+#test with default again
+random.walk()
+
+```
+
+Test run with seed and no plot
+```{r}
+#test with seed 33
+random.walk(seed = 33,plot.walk = F)
+
+#test with seed 33 again
+random.walk(seed = 33,plot.walk = F)
+
+```
+
+## Part 4.\
+
+#### 18.\
+
+Run the given code.\
+
+```{r}
+g <- function(x) {
+       return(sqrt(1-x^2))
+     }
+plot(seq(0,1,.01),g(seq(0,1,.01)),type="l",col="purple")
+```
+
+#### 19.\
+Take integral of g(x) on [0,1] and we will get the result of $\frac{\pi}{4}$, this is the area under the curve
+
+\newpage
+
+#### 20.\
+
+With $p(x)$ chosen as the pdf of a uniform distribution on [0,1], $p(x)=1$ and thus $g(x)/p(x)=g(x) = \sqrt{1-x^2}$.\
+
+Using Monte Carlo Integration with 100,000 draws from $p(x)$, the integral is estimated to be 0.7852, which is within 1/1000 of the true value (0.7854) calculated using geometric formulas.\
+
+```{r}
+#g(x)/p(x) = g(x) because
+g.over.p <- function(x) {
+  return(sqrt(1-x^2))
+}
+
+set.seed(0)
+#estimate using MC integration
+mean(g.over.p(runif(100000,min = 0,max = 1))) 
+
+#true value
+pi/4
+
+set.seed(0)
+#difference is within 1/1000
+mean(g.over.p(runif(100000,min = 0,max = 1))) - (pi/4)
+```
