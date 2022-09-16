@@ -1,0 +1,206 @@
+---
+title: "Assignment 2"
+author: "Giang Vu"
+date: "2/9/2021"
+output: pdf_document
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(dplyr)
+```
+
+## Assignment 2
+
+### Part 1
+
+#### i. 
+
+Data was imported.
+
+```{r echo=TRUE, warning=FALSE}
+#set working dir.
+setwd("/Users/giangvu/Desktop/STAT 2301 - Statistical Computing and Data Science/HW/HW2")
+#import dataset
+housing <- read.csv("NYChousing.csv",header = T,as.is = T,sep = ",")
+```
+
+#### ii.
+
+There are 2506 rows and 22 columns in the 'housing' dataframe.
+
+```{r echo=TRUE, warning=FALSE}
+nrow(housing)
+ncol(housing)
+```
+
+#### iii.
+
+This command below applies the sum function to the function to check which elements are missing in all columns of the dataframe. In other words, it tells us how many missing entries there are in each column.
+
+```{r echo=TRUE, warning=FALSE}
+#check how many NAs there are in each column
+apply(is.na(housing),2,sum)
+```
+
+#### iv. and v.
+
+After removing the rows that have NA in variable Value, the dataframe now only has 2454 rows. Compared to the original 2506 rows, 52 rows were omitted, which agrees with the result from part iii.
+
+```{r echo=TRUE, warning=FALSE}
+#remove rows with NA in Value
+housing <- housing[!is.na(housing$Value),]
+#check number of rows 
+nrow(housing)
+```
+
+#### vi.
+
+A new variable logValue is created and its summary statistics are obtained below.
+
+```{r echo=TRUE, warning=FALSE}
+#create new variable logValue
+housing$logValue <- log(housing$Value)
+#get summary stats for new variable
+summary(housing$logValue)
+```
+
+#### vii.
+
+A new variable logUnits is created as follows.
+
+```{r echo=TRUE, warning=FALSE}
+#create new variable logUnits
+housing$logUnits <- log(housing$UnitCount)
+```
+
+#### viii.
+
+A new variable after1950 is created as follows.
+
+```{r echo=TRUE, warning=FALSE}
+#create new variable after1950
+housing$after1950 <- ifelse(housing$YearBuilt>=1950,TRUE,FALSE)
+```
+
+### Part 2
+
+#### i. 
+
+Plot of logValue against logUnits.
+
+```{r echo=TRUE, warning=FALSE}
+#plot logvalue against logunits
+plot(housing$logUnits,housing$logValue, xlab = 'logUnits',ylab = 'logValue')
+```
+
+#### ii. 
+
+Below is the plot of logValue against logUnits with colors by whether the property was built after 1950 or not. We could see that there is an upward trend in the plot, meaning that the more units a property has, the higher its value is. The coloring tells us which property (data point) is built before 1950 (black) or after 1950 (pink). We could see that generally newer property has higher value and also more units than older property.
+
+```{r echo=TRUE, warning=FALSE}
+#plot logvalue against logunits
+plot(housing$logUnits,housing$logValue, 
+     xlab = 'logUnits',ylab = 'logValue',
+     col=factor(housing$after1950))
+#add legends
+legend("bottomright", legend = levels(factor(housing$after1950)), 
+       fill = unique(factor(housing$after1950)))
+```
+
+#### iii. 
+
+##### (i)
+
+Correlation between logValue and logUnits in the whole data is 0.873
+
+```{r echo=TRUE, warning=FALSE}
+#corr for whole data
+cor(housing$logValue,housing$logUnits)
+```
+
+##### (ii)
+
+Correlation between logValue and logUnits in just Manhattan is 0.883
+
+```{r echo=TRUE, warning=FALSE}
+#corr for whole data
+cor(housing[housing$Borough=="Manhattan",]$logValue,
+    housing[housing$Borough=="Manhattan",]$logUnits)
+```
+
+##### (iii)
+
+Correlation between logValue and logUnits in just Brooklyn is 0.910
+
+```{r echo=TRUE, warning=FALSE}
+#corr for whole data
+cor(housing[housing$Borough=="Brooklyn",]$logValue,
+    housing[housing$Borough=="Brooklyn",]$logUnits)
+```
+
+##### (iv)
+
+Correlation between logValue and logUnits for properties built after 1950 is 0.722
+
+```{r echo=TRUE, warning=FALSE}
+#corr for whole data
+cor(housing[housing$after1950==T,]$logValue,
+    housing[housing$after1950==T,]$logUnits)
+```
+
+##### (v)
+
+Correlation between logValue and logUnits for properties built before 1950 is 0.864
+
+```{r echo=TRUE, warning=FALSE}
+#corr for whole data
+cor(housing[housing$after1950==F,]$logValue,
+    housing[housing$after1950==F,]$logUnits)
+```
+
+#### iv.
+
+Plot logValue against logUnits for Manhattan (pink) and Brooklyn (black).
+
+```{r echo=TRUE, warning=FALSE}
+#plot logvalue against logunits for Manhattan and Brooklyn
+plot(x = housing[housing$Borough%in%c("Brooklyn","Manhattan"),]$logUnits,
+     y = housing[housing$Borough%in%c("Brooklyn","Manhattan"),]$logValue, 
+     xlab = 'logUnits',ylab = 'logValue',
+     col=factor(housing[housing$Borough%in%c("Brooklyn","Manhattan"),]$Borough))
+#add legends
+legend("bottomright", 
+       legend = levels(factor(housing[housing$Borough%in%c("Brooklyn","Manhattan"),]$Borough)), 
+       fill = unique(factor(housing[housing$Borough%in%c("Brooklyn","Manhattan"),]$Borough)))
+```
+
+#### v.
+
+The block of code given is essentially for calculating the median property value for properties in Manhattan. We can achieve the same result, which is 1172362, with one single line of code as follows.
+
+```{r echo=TRUE, warning=FALSE}
+#median value for manhattan
+median(housing[housing$Borough=="Manhattan",]$Value)
+```
+
+#### vi.
+
+A side-by-side boxplot of logValue across five boroughs is generated as follows.
+
+```{r echo=TRUE, warning=FALSE}
+#side by side box plot of logValue by borough
+boxplot(housing$logValue ~ housing$Borough, col="pink", 
+        main="Property logValue by Borough", 
+        ylab="logValue", xlab="Borough") 
+```
+
+#### vii.
+
+The median property values for each borough are calculated below using tapply.
+
+```{r echo=TRUE, warning=FALSE}
+#side by side box plot of logValue by borough
+tapply(housing$Value,housing$Borough,median)
+```
+
+
