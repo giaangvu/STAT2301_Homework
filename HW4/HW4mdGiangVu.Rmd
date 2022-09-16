@@ -1,0 +1,277 @@
+---
+title: "Assignment 4"
+author: "Giang Vu"
+date: "3/24/2021"
+output: html_document
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(dplyr)
+library(plyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+library(tibble)
+```
+
+## Assignment 4
+
+### 1.\
+
+Data was imported below.\
+
+```{r echo=TRUE, warning=FALSE}
+#set working dir.
+setwd("/Users/giangvu/Desktop/STAT 2301 - Statistical Computing and Data Science/HW/HW4")
+#import dataset
+debt <- read.csv("debt.csv",header = T,as.is = T,sep = ",")
+dim(debt)
+head(debt)
+```
+
+#### a.\
+
+The function mean.growth() is defined as follows.\
+
+```{r echo=TRUE, warning=FALSE}
+#define mean.growth()
+mean.growth <- function(df){
+  return(signif(mean(df$growth),3))
+}
+```
+
+#### b.\
+
+After applying the function above to data split by countries, we obtained the results of average GDP growth rates as follows.\
+
+```{r echo=TRUE, warning=FALSE}
+#use daply()
+avgGDP.country <- daply(debt, .(Country), mean.growth)
+#check results
+avgGDP.country["Australia"]
+avgGDP.country["Netherlands"]
+#present full result
+avgGDP.country
+```
+
+### 2.\
+
+Below is the average GDP growth rate for each year (averaging over countries), and a corresponding plot.\
+
+```{r echo=TRUE, warning=FALSE, out.width="80%"}
+#use daply()
+avgGDP.year <- daply(debt, .(Year), mean.growth)
+#check results
+avgGDP.year["1972"]
+avgGDP.year["1989"]
+
+#plot
+plot(y=avgGDP.year,x=c(1946:2009),ylab = "Average GDP growth", xlab = "Year",
+     main = "Average GDP growth rate by Year")
+```
+
+### 3.\
+
+#### a.\
+The correlation coefficient between GDP growth and debt ratio over the whole dataset (all countries, all years) is -0.1995.\
+
+```{r echo=TRUE, warning=FALSE}
+#corr btw GDP and debt ratio overall
+signif(cor(debt$growth,debt$ratio),4)
+```
+
+#### b.\
+
+Below is the correlation coefficients for each country, and a histogram of them.\
+
+```{r echo=TRUE, warning=FALSE, out.width="80%"}
+#a custom function to calculate corr btw GDP and debt ratio for a dataframe
+corr.fcn <- function(df){
+  signif(cor(df$growth,df$ratio),3)
+}
+
+#apply to data split by country
+corr.country <- daply(debt,.(Country),corr.fcn)
+corr.country
+
+#plot historgram
+hist(corr.country, breaks = 10,xlab = "Correlation coefficient per country",
+     main = "Histogram of correlation coefficient per country")
+```
+
+
+#### c.\
+
+Below is the correlation coefficients for each year, and a histogram of them.\
+
+```{r echo=TRUE, warning=FALSE, out.width="80%"}
+#apply to data split by year
+corr.year <- daply(debt,.(Year),corr.fcn)
+corr.year
+
+#plot historgram
+hist(corr.year, breaks = 10,xlab = "Correlation coefficient per year",
+     main = "Histogram of correlation coefficient per year")
+```
+
+#### d.\
+
+Looking at the histograms I could see there is a country and a year that has higher correlation than the rest, which I checked to be Norway and year 1978, respectively.\
+
+```{r echo=TRUE, warning=FALSE}
+which.max(corr.country)
+which.max(corr.year)
+```
+
+### 4.\
+
+The estimates for the intercept and slope of the linear model are 4.280 and -0.018, respectively.\
+The scatterplot of GDP growth versus debt ratio was also generated, with the red line being the fitted regression line.\
+
+```{r echo=TRUE, warning=FALSE,out.width="80%"}
+#fit linear model
+debt.fit <- lm(growth ~ ratio, data = debt)
+debt.fit
+
+#scatterplot
+plot(x=debt$ratio,y=debt$growth,
+     xlab = "Debt Ratio", ylab = "GDP Growth",
+     main = "GDP Growth against Debt Ratio")
+
+#fitted line
+abline(debt.fit,col="red")
+```
+
+### 5.\
+
+The four countries that have correlation smaller than -0.5 are France, Germany, Italy and Japan.\
+I then defined a custom function to plot GDP growth against debt ratio, and applied this function to data of the four countries split by country.\
+
+```{r echo=TRUE, warning=FALSE,out.width="80%"}
+#check countries
+corr.country < -0.5
+#define plot fcn
+plotxy <- function(df){
+  plot(x=df$ratio,y=df$growth,
+       xlab = "Debt Ratio", ylab = "GDP Growth",
+       main = unique(df$Country))
+}
+
+#set grid for plots
+par(mfrow=c(2,2))
+#create plots
+d_ply(debt[debt$Country %in% c("France","Germany","Italy","Japan"),c(1,3,4)], 
+      .(Country),
+      plotxy) 
+```
+
+
+### 6.\
+
+#### a.\
+
+Data for France is filtered out in a 54x4 dataframe.\
+
+```{r echo=TRUE, warning=FALSE}
+#filter out france data
+debt.fr <- debt[debt$Country=="France",]
+dim(debt.fr)
+```
+
+#### b.\
+
+A new column is added using a loop that checks the difference between the "Year" value of pairs of consecutive rows. If the difference is equal to 1 then the new column entry takes the "growth" value of the next row, and "NA" otherwise.\
+
+```{r echo=TRUE, warning=FALSE}
+#empty vector for new column
+next.growth <- c()
+
+#a loop to check difference between year of consecutive rows, fill in empty vector with next growth and NAs
+for (i in 1:nrow(debt.fr)){
+  if (i < nrow(debt.fr) & debt.fr[i+1,2]-debt.fr[i,2]==1) {
+    next.growth[i] <- debt.fr[i+1,3]
+    
+  } else {
+    next.growth[i] <- NA
+  }
+}
+
+#add vector into df as a column 
+debt.fr$next.growth <- next.growth
+
+#check result
+signif(debt.fr[debt.fr$Year==1971,5],4)
+signif(debt.fr[debt.fr$Year==1972,5],4)
+```
+
+### 7.\
+
+I defined a custom function that is essentially the loop procedure in previous part, and applied this function on the data split by country.\
+
+```{r echo=TRUE, warning=FALSE}
+#define function
+next.fcn <- function(df){
+  next.vec <- c()
+  for(i in 1:nrow(df)){
+    if (i < nrow(df) & df[i+1,2]-df[i,2]==1) {
+    next.vec[i] <- df[i+1,3]
+    
+  } else {
+    next.vec[i] <- NA
+  }
+  }
+  df$next.growth <- next.vec
+  return(df)
+}
+
+#apply to split data
+debt.next <- ddply(debt, .(Country), next.fcn)
+
+#check result
+signif(debt.next[debt.next$Year==2009 & debt.next$Country=="France",5],4)
+
+```
+
+### 8.\
+
+The estimates for the intercept and slope of the linear model are 3.925 and -0.012, respectively.\
+The scatterplot of next year's GDP growth versus this year's debt ratio was also generated, with the red line being the fitted regression line.\
+I think there isn't too much difference comparing the two models. This new model even fits a bit worse than the original model in question 4, because from looking at the plot, we can see most of the points stay packed together and closer to the line in the original model, but somewhat more spread out in this new one.\
+
+
+```{r echo=TRUE, warning=FALSE,out.width="80%"}
+#fit linear model
+debt.fit2 <- lm(next.growth ~ ratio, data = debt.next)
+debt.fit2
+
+#scatterplot
+plot(x=debt.next$ratio,y=debt.next$next.growth,
+     xlab = "This year's Debt Ratio", ylab = "Next year's GDP Growth",
+     main = "Next year's GDP Growth against this year's Debt Ratio")
+
+#fitted line
+abline(debt.fit2,col="red")
+```
+
+
+### 9.\
+
+The estimates for the intercept and slope of the linear model are 1.971 and 0.401, respectively.\
+The scatterplot of next year's GDP growth versus this year's GDP growth was also generated, with the red line being the fitted regression line.\
+Looking at this model and the model in question 8, we can see that current GDP might be a better predictor for future GDP than debt ratio. The correlation seems a litle stronger in this new model compared to model in question 8.\
+
+```{r echo=TRUE, warning=FALSE,out.width="80%"}
+#fit linear model
+debt.fit3 <- lm(next.growth ~ growth, data = debt.next)
+debt.fit3
+
+#scatterplot
+plot(x=debt.next$growth,y=debt.next$next.growth,
+     xlab = "This year's GDP Growth", ylab = "Next year's GDP Growth",
+     main = "Next year's GDP Growth against this year's GDP Growth")
+
+#fitted line
+abline(debt.fit3,col="red")
+```
+
+
